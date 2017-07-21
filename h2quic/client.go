@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
@@ -21,8 +22,9 @@ import (
 )
 
 type roundTripperOpts struct {
-	DisableCompression bool
-	DialAddr           func(hostname string, tlsConfig *tls.Config, config *quic.Config) (quic.Session, error)
+	DisableCompression    bool
+	ResponseHeaderTimeout time.Duration
+	DialAddr              func(hostname string, tlsConfig *tls.Config, config *quic.Config) (quic.Session, error)
 }
 
 var dialAddr = quic.DialAddr
@@ -30,6 +32,9 @@ var dialAddr = quic.DialAddr
 // client is a HTTP2 client doing QUIC requests
 type client struct {
 	mutex sync.RWMutex
+
+	createdAt time.Time
+	accessAt  time.Time
 
 	tlsConf *tls.Config
 	config  *quic.Config
@@ -68,6 +73,7 @@ func newClient(
 		config = quicConfig
 	}
 	return &client{
+		createdAt:       time.Now(),
 		hostname:        authorityAddr("https", hostname),
 		responses:       make(map[protocol.StreamID]chan *http.Response),
 		encryptionLevel: protocol.EncryptionUnencrypted,
@@ -151,6 +157,7 @@ func (c *client) handleHeaderStream() {
 
 // Roundtrip executes a request and returns a response
 func (c *client) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.accessAt = time.Now()
 	// TODO: add port to address, if it doesn't have one
 	if req.URL.Scheme != "https" {
 		return nil, errors.New("quic http2: unsupported scheme")
@@ -207,6 +214,19 @@ func (c *client) RoundTrip(req *http.Request) (*http.Response, error) {
 		bodySent = true
 	}
 
+	var timeout time.Duration
+	if d := c.opts.ResponseHeaderTimeout; d != 0 {
+		timeout = d
+	} else {
+		timeout = 10 * time.Second
+	}
+
+	if ctx := req.Context(); ctx != nil {
+		if v := ctx.Value("ResponseHeaderTimeout"); v != nil {
+			timeout = v.(time.Duration)
+		}
+	}
+
 	for !(bodySent && receivedResponse) {
 		select {
 		case res = <-responseChan:
@@ -220,6 +240,13 @@ func (c *client) RoundTrip(req *http.Request) (*http.Response, error) {
 				return nil, err
 			}
 		case <-c.headerErrored:
+			// an error occured on the header stream
+			_ = c.CloseWithError(c.headerErr)
+			return nil, c.headerErr
+		case <-time.After(timeout):
+			// wait response timed out
+			c.headerStream.Close()
+			c.headerErr = qerr.Error(qerr.NetworkIdleTimeout, "read response header timed out")
 			// an error occured on the header stream
 			_ = c.CloseWithError(c.headerErr)
 			return nil, c.headerErr
