@@ -57,7 +57,15 @@ type stream struct {
 	writeDeadline  time.Time
 
 	flowControlManager flowcontrol.FlowControlManager
+
+	laddr net.Addr
+	raddr net.Addr
 }
+
+func (s *stream) LocalAddr() net.Addr  { return s.laddr }
+func (s *stream) RemoteAddr() net.Addr { return s.raddr }
+
+var _ net.Conn = &stream{}
 
 var _ Stream = &stream{}
 

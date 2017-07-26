@@ -790,7 +790,10 @@ func (s *session) newStream(id protocol.StreamID) *stream {
 	} else {
 		s.flowControlManager.NewStream(id, true)
 	}
-	return newStream(id, s.scheduleSending, s.queueResetStreamFrame, s.flowControlManager)
+	str := newStream(id, s.scheduleSending, s.queueResetStreamFrame, s.flowControlManager)
+	str.laddr = s.LocalAddr()
+	str.raddr = s.RemoteAddr()
+	return str
 }
 
 // garbageCollectStreams goes through all streams and removes EOF'ed streams
