@@ -172,6 +172,8 @@ func (s *Server) handleRequest(session streamCreator, headerStream quic.Stream, 
 
 	req.RemoteAddr = session.RemoteAddr().String()
 
+	req.TLS = session.ConnectionState()
+
 	if utils.Debug() {
 		utils.Infof("%s %s%s, on data stream %d", req.Method, req.Host, req.RequestURI, h2headersFrame.StreamID)
 	} else {

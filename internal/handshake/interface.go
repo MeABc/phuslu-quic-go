@@ -1,5 +1,6 @@
 package handshake
 
+import "crypto/tls"
 import "github.com/phuslu/quic-go/internal/protocol"
 
 // Sealer seals a packet
@@ -11,7 +12,7 @@ type Sealer interface {
 // CryptoSetup is a crypto setup
 type CryptoSetup interface {
 	Open(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, protocol.EncryptionLevel, error)
-	HandleCryptoStream() error
+	HandleCryptoStream() (*tls.ConnectionState, error)
 	// TODO: clean up this interface
 	DiversificationNonce() []byte   // only needed for cryptoSetupServer
 	SetDiversificationNonce([]byte) // only needed for cryptoSetupClient

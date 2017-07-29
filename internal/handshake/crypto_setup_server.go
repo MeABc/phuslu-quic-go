@@ -3,6 +3,7 @@ package handshake
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -33,6 +34,8 @@ type cryptoSetupServer struct {
 	supportedVersions []protocol.VersionNumber
 
 	acceptSTKCallback func(net.Addr, *Cookie) bool
+
+	connectionState *tls.ConnectionState
 
 	nullAEAD                    crypto.AEAD
 	secureAEAD                  crypto.AEAD
@@ -99,24 +102,24 @@ func NewCryptoSetup(
 }
 
 // HandleCryptoStream reads and writes messages on the crypto stream
-func (h *cryptoSetupServer) HandleCryptoStream() error {
+func (h *cryptoSetupServer) HandleCryptoStream() (*tls.ConnectionState, error) {
 	for {
 		var chloData bytes.Buffer
 		message, err := ParseHandshakeMessage(io.TeeReader(h.cryptoStream, &chloData))
 		if err != nil {
-			return qerr.HandshakeFailed
+			return h.connectionState, qerr.HandshakeFailed
 		}
 		if message.Tag != TagCHLO {
-			return qerr.InvalidCryptoMessageType
+			return h.connectionState, qerr.InvalidCryptoMessageType
 		}
 
 		utils.Debugf("Got %s", message)
 		done, err := h.handleMessage(chloData.Bytes(), message.Data)
 		if err != nil {
-			return err
+			return h.connectionState, err
 		}
 		if done {
-			return nil
+			return h.connectionState, nil
 		}
 	}
 }
@@ -173,6 +176,11 @@ func (h *cryptoSetupServer) handleMessage(chloData []byte, cryptoData map[Tag][]
 		}
 		h.aeadChanged <- protocol.EncryptionForwardSecure
 		close(h.sentSHLO)
+		h.connectionState = &tls.ConnectionState{
+			HandshakeComplete: true,
+			Version:           tls.VersionTLS13,
+			ServerName:        sni,
+		}
 		return true, nil
 	}
 

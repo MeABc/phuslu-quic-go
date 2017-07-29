@@ -21,6 +21,8 @@ type cryptoSetupTLS struct {
 
 	keyDerivation KeyDerivationFunction
 
+	connectionState *tls.ConnectionState
+
 	mintConf *mint.Config
 	conn     crypto.MintController
 
@@ -60,15 +62,15 @@ func NewCryptoSetupTLS(
 	}, nil
 }
 
-func (h *cryptoSetupTLS) HandleCryptoStream() error {
+func (h *cryptoSetupTLS) HandleCryptoStream() (*tls.ConnectionState, error) {
 	alert := h.conn.Handshake()
 	if alert != mint.AlertNoAlert {
-		return fmt.Errorf("TLS handshake error: %s (Alert %d)", alert.String(), alert)
+		return h.connectionState, fmt.Errorf("TLS handshake error: %s (Alert %d)", alert.String(), alert)
 	}
 
 	aead, err := h.keyDerivation(h.conn, h.perspective)
 	if err != nil {
-		return err
+		return h.connectionState, err
 	}
 	h.mutex.Lock()
 	h.aead = aead
@@ -77,7 +79,7 @@ func (h *cryptoSetupTLS) HandleCryptoStream() error {
 	// signal to the outside world that the handshake completed
 	h.aeadChanged <- protocol.EncryptionForwardSecure
 	close(h.aeadChanged)
-	return nil
+	return h.connectionState, nil
 }
 
 func (h *cryptoSetupTLS) Open(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, protocol.EncryptionLevel, error) {

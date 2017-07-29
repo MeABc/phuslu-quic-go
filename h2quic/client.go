@@ -240,6 +240,7 @@ func (c *client) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	res.Request = req
+	res.TLS = c.session.ConnectionState()
 	return res, nil
 }
 
