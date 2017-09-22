@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lucas-clemente/quic-go/ackhandler"
-	"github.com/lucas-clemente/quic-go/internal/handshake"
-	"github.com/lucas-clemente/quic-go/internal/protocol"
-	"github.com/lucas-clemente/quic-go/internal/wire"
+	"github.com/phuslu/quic-go/ackhandler"
+	"github.com/phuslu/quic-go/internal/handshake"
+	"github.com/phuslu/quic-go/internal/protocol"
+	"github.com/phuslu/quic-go/internal/wire"
 )
 
 type packedPacket struct {

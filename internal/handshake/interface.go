@@ -1,6 +1,6 @@
 package handshake
 
-import "github.com/lucas-clemente/quic-go/internal/protocol"
+import "github.com/phuslu/quic-go/internal/protocol"
 
 // Sealer seals a packet
 type Sealer interface {
